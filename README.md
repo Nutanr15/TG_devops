@@ -63,6 +63,8 @@ cd infra
 terraform init
 terraform apply -auto-approve
 ```
+![Infra1](images/infra1.png)
+![Infra2](images/infra2.png)
 
 After Terraform completes, configure `kubectl` to use the cluster:
 
@@ -256,13 +258,4 @@ cat output.csv
 
 ---
 
-## Security & Best Practices
-
-- **IRSA** ensures no AWS credentials in containers
-- **Minimal RBAC** applied for CronJob
-- **Resource requests/limits** protect nodes
-- **Probes** monitor job health
-- Remote Terraform state (S3 + DynamoDB) recommended for use
-
----
 
