@@ -11,3 +11,4 @@ COPY process.py .
 
 # command to run
 CMD ["python", "process.py"]
+

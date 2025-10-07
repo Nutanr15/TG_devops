@@ -1,0 +1,76 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: data-transformer-repo
+  CLUSTER_NAME: devops-eks-cluster
+  NAMESPACE: default
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # ---- AWS OIDC Auth ----
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # ---- Terraform Apply FIRST ----
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init & Apply
+      run: |
+        cd infra
+        terraform init -input=false
+        terraform apply -auto-approve -input=false
+        cd ..
+      env:
+        TF_VAR_aws_region: ${{ env.AWS_REGION }}
+
+    # ---- Get ECR repo URL from Terraform output ----
+    - name: Capture Terraform outputs
+      id: tf
+      run: |
+        cd infra
+        echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+
+    # ---- Build & Push Docker image ----
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_URL
+
+    - name: Build and push Docker image
+      run: |
+        IMAGE_TAG=${{ github.sha }}
+        IMAGE_URI=$ECR_URL:$IMAGE_TAG
+        echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+        docker build -t $IMAGE_URI ./app
+        docker push $IMAGE_URI
+
+    # ---- Deploy/Update CronJob ----
+    - name: Configure kubectl for EKS
+      run: |
+        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+    - name: Apply Kubernetes manifests
+      run: |
+        sed -i "s|<ECR-IMAGE-URI>:latest|$IMAGE_URI|g" k8s/cronjob.yaml
+        kubectl apply -f k8s/serviceaccount.yaml
+        kubectl apply -f k8s/rbac.yaml
+        kubectl apply -f k8s/cronjob.yaml
+
