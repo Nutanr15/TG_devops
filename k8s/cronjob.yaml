@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-transform-job
+  namespace: default
+spec:
+  schedule: "0 2 * * *"   # runs daily at 2 AM UTC
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: data-transform
+        spec:
+          serviceAccountName: s3-access-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: data-transform
+            image: 560615485759.dkr.ecr.us-east-1.amazonaws.com/data-transformer-repo:latest
+            imagePullPolicy: Always
+            env:
+            - name: RAW_BUCKET
+              value: raw-data-dev-nutan
+            - name: PROCESSED_BUCKET
+              value: processed-data-dev-nutan
+            - name: INPUT_KEY
+              value: input.csv
+            - name: OUTPUT_KEY
+              value: output.csv
+            resources:
+              requests:
+                cpu: "200m"
+                memory: "256Mi"
+              limits:
+                cpu: "500m"
+                memory: "512Mi"
+            livenessProbe:
+              exec:
+                command: ["pgrep", "-f", "process.py"]
+              initialDelaySeconds: 10
+              periodSeconds: 10
+            readinessProbe:
+              exec:
+                command: ["pgrep", "-f", "process.py"]
+              initialDelaySeconds: 5
+              periodSeconds: 5

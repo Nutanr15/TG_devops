@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cronjob-minimal-role
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cronjob-minimal-rolebinding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: s3-access-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: cronjob-minimal-role
+  apiGroup: rbac.authorization.k8s.io
